@@ -157,7 +157,9 @@ def cmd_query(args: argparse.Namespace) -> int:
         elif aggregation == "duration":
             query.percentiles("event.duration_ms")
         elif aggregation.startswith("by-"):
-            query.count_by(aggregation[3:].replace("_", "."), size=args.agg_size)
+            # The field path, as it appears in the mapping. No translation:
+            # by-log_origin_file_name would have to guess where the dots go.
+            query.count_by(aggregation[3:], size=args.agg_size)
         else:
             raise QueryError(f"unknown aggregation {aggregation!r}")
     query.page(args.size)
