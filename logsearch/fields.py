@@ -110,12 +110,14 @@ def _walk(
     sources: dict[str, str],
     index_ignore_malformed: bool,
     out: list[Field],
+    definitions: dict[str, Any],
 ) -> None:
     for name, definition in sorted(properties.items()):
         path = f"{prefix}{name}"
         if not isinstance(definition, dict):
             continue
         field_type = _field_type(definition)
+        definitions[path] = definition
         children = definition.get("properties")
         multi = definition.get("fields")
         kind: Kind = "object" if field_type == "object" and isinstance(children, dict) else "leaf"
@@ -142,12 +144,13 @@ def _walk(
             )
         )
         if isinstance(children, dict):
-            _walk(children, f"{path}.", sources, index_ignore_malformed, out)
+            _walk(children, f"{path}.", sources, index_ignore_malformed, out, definitions)
         if isinstance(multi, dict):
             for sub_name, sub in sorted(multi.items()):
                 if not isinstance(sub, dict):
                     continue
                 sub_type = _field_type(sub)
+                definitions[f"{path}.{sub_name}"] = sub
                 sub_indexed = bool(sub.get("index", True))
                 sub_options = sub.get("index_options", "positions")
                 out.append(
@@ -172,12 +175,14 @@ class FieldMap:
     def __init__(self, composed: Composed) -> None:
         self.composed = composed
         found: list[Field] = []
+        self.definitions: dict[str, Any] = {}
         _walk(
             composed.properties(),
             "",
             composed.sources,
             composed.index_ignore_malformed,
             found,
+            self.definitions,
         )
         self.fields: dict[str, Field] = {f.path: f for f in found}
 
@@ -192,6 +197,15 @@ class FieldMap:
 
     def get(self, path: str) -> Field | None:
         return self.fields.get(path)
+
+    def definition(self, path: str) -> dict[str, Any]:
+        """The raw field definition, for the parameters the walk does not carry.
+
+        A date field's `format` list and a flattened field's `depth_limit` only
+        matter when a value is being checked against them.
+        """
+        found = self.definitions.get(path)
+        return found if isinstance(found, dict) else {}
 
     @property
     def total_fields_count(self) -> int:
