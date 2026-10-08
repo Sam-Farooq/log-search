@@ -188,9 +188,10 @@ and declares one `flattened` field to catch them:
 ```
 
 A flattened field is one entry in the mapping with an unbounded set of keys
-underneath it. Thirteen distinct keys arrive in the fixtures, including five
-`exp_*` keys per event that share none of their names, and the mapping gains
-nothing. `labels.tenant` is queryable as a term and groupable in an aggregation.
+underneath it. Thirteen distinct keys arrive in the fixtures, seven of them
+`exp_*` keys carried by two events, three on one and four on the other, sharing
+none of their names, and the mapping gains nothing. `labels.tenant` is queryable
+as a term and groupable in an aggregation.
 
 The cost, stated plainly: **every value under a flattened field is indexed as a
 keyword.** `labels.retry_count: 3` is the string `3`. It cannot be
@@ -341,14 +342,14 @@ that zero is not a gate.
 ## Tests
 
 ```bash
-pytest -q                 # 149 tests, no cluster, no network, no key
+pytest -q                 # 151 tests, no cluster, no network, no key
 ruff check logsearch tests && ruff format --check .
 ```
 
 The templates are JSON, the field walk is a function over them, the value checks
 are pure and the query builder returns a dict, so the default suite needs
 nothing running. What has actually been run is exactly that: both lines above on
-one macOS 27.0.1 laptop under Python 3.11.17, 149 passed and 27 deselected,
+one macOS 27.0.1 laptop under Python 3.11.17, 151 passed and 27 deselected,
 plus every command in the section above it. Nothing has run on a hosted runner,
 and nothing has run against a cluster.
 

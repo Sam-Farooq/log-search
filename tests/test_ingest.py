@@ -154,6 +154,25 @@ def test_unknown_keys_are_routed_into_the_catch_all(events, strict_map):
     assert routed.accepted is True
 
 
+def exp_keys_by_event(results) -> dict[str, set[str]]:
+    """The generated `exp_*` keys each accepted document carries under `labels`.
+
+    A helper rather than four lines inline, because the README and
+    `fixtures/README.md` both state these counts and the only way to keep those
+    numbers honest is to read them back off the same documents the ingest path
+    produces.
+    """
+    by_event: dict[str, set[str]] = {}
+    for result in results:
+        document = result.document
+        if not document or not isinstance(document.get("labels"), dict):
+            continue
+        exp = {key for key in document["labels"] if key.startswith("exp_")}
+        if exp:
+            by_event[document["event"]["id"]] = exp
+    return by_event
+
+
 def test_the_catch_all_turns_an_unbounded_key_set_into_one_mapped_field(events, strict_map):
     """Thirteen distinct keys arrive. The mapping gains none."""
     _, results = run(events, strict_map, Strategy.STRICT)
@@ -161,8 +180,41 @@ def test_the_catch_all_turns_an_unbounded_key_set_into_one_mapped_field(events, 
     for result in results:
         if result.document and isinstance(result.document.get("labels"), dict):
             keys |= set(result.document["labels"])
-    assert len(keys) >= 13
+    assert len(keys) == 13
     assert len(FieldMap(strict_map.composed).flattened_roots()) == 1
+
+
+def test_the_exp_keys_are_the_count_the_readme_states(events, strict_map):
+    """Two events carry generated keys: 3 on one, 4 on the other, 7 distinct.
+
+    The README claimed five per event for a while, which no assertion could
+    contradict because the count above was a `>=`. These are equalities.
+    """
+    _, results = run(events, strict_map, Strategy.STRICT)
+    by_event = exp_keys_by_event(results)
+    assert {event: len(keys) for event, keys in by_event.items()} == {"e-0036": 3, "e-0037": 4}
+    assert len(set.union(*by_event.values())) == 7
+    assert set.intersection(*by_event.values()) == set()
+
+
+def test_the_exp_key_count_moves_when_the_fixtures_do(events, strict_map):
+    """The counts above have to fail on a fixture set that carries more keys.
+
+    Five `exp_*` keys per event is what the README used to say. Feeding that
+    shape through the same helper has to produce different numbers, or the
+    equalities above are decoration.
+    """
+    doctored = json.loads(json.dumps(events))
+    for event in doctored:
+        labels = event.get("labels")
+        if isinstance(labels, dict) and any(key.startswith("exp_") for key in labels):
+            labels["exp_000001"] = "on"
+            labels["exp_000002"] = "on"
+    _, results = run(doctored, strict_map, Strategy.STRICT)
+    by_event = exp_keys_by_event(results)
+    assert {event: len(keys) for event, keys in by_event.items()} == {"e-0036": 5, "e-0037": 6}
+    assert len(set.union(*by_event.values())) == 9
+    assert set.intersection(*by_event.values()) == {"exp_000001", "exp_000002"}
 
 
 def test_audit_rejects_an_unknown_key_because_it_has_no_catch_all(audit_events, templates):

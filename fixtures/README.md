@@ -22,7 +22,7 @@ counted here so a test can assert the totals rather than trusting a run:
 | 2 | `http.response.status_code` is `"200"` and `"503"` | the conflict Elasticsearch coerces away without telling anyone |
 | 2 | `event.duration_ms` is `{"value": 1400, "unit": "ms"}` | an object sent to a scalar field, which `ignore_malformed` does not cover |
 | 3 | keys that are in no template: `tenant`, `retry_count`, `shard_hint`, `k8s.*` | what `dynamic` is for, and where unknown keys should go instead |
-| 2 | five distinct `labels.exp_*` keys per event | the arbitrary key set that reaches a mapping explosion |
+| 2 | `labels.exp_*` keys with generated names, 3 on one event and 4 on the other, 7 distinct | the arbitrary key set that reaches a mapping explosion |
 | 1 | a 1448 character `message` | `ignore_above` on the keyword half of a multi-field |
 | 1 | `client.ip` is `10.0.0.300` | a value that looks like its type and is not |
 | 1 | `@timestamp` is `2026-03-07 13:30:00 PST` | a format the field does not declare |
