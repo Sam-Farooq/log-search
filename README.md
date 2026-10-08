@@ -338,7 +338,7 @@ that zero is not a gate.
 ## Tests
 
 ```bash
-pytest -q                 # 148 tests, no cluster, no network, no key
+pytest -q                 # 149 tests, no cluster, no network, no key
 ruff check logsearch tests && ruff format --check .
 ```
 

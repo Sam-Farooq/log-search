@@ -10,6 +10,15 @@ from logsearch.cli import FINDINGS, OK, REFUSED, main
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 
 
+def test_the_package_and_the_project_agree_about_the_version():
+    """Two places hold it, so one test holds them together."""
+    from logsearch import __version__
+
+    pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+    assert f'version = "{__version__}"' in pyproject
+    assert __version__ == "0.13.2"
+
+
 def test_lint_exits_zero_on_the_shipped_files(capsys):
     assert main(["lint"]) == OK
     out = capsys.readouterr().out
