@@ -52,8 +52,9 @@ def _create(client, templates, index: str, template_name: str) -> None:
     """Create one index with a composed mapping, directly.
 
     The index templates are installed too, in test_install_is_accepted. These
-    direct creates exist so one test can fail on one mapping without the order
-    of the others mattering.
+    direct creates exist so each test owns an index nothing else writes to:
+    _ignored counts are per index, and a shared one would be the sum of
+    whatever ran first.
     """
     composed = templates.compose(template_name)
     client.options(ignore_status=404).indices.delete(index=index)
@@ -66,16 +67,45 @@ def _create(client, templates, index: str, template_name: str) -> None:
     client.indices.create(index=index, settings=settings, mappings=composed.mappings)
 
 
-@pytest.fixture(scope="module")
-def strict_index(client, templates):
-    _create(client, templates, STRICT_INDEX, "logs-app")
-    return STRICT_INDEX
+def _load(client, templates, index: str, template_name: str, events, strategy):
+    """Create the index and bulk the accepted documents into it."""
+    from logsearch.client import bulk_index
+
+    _create(client, templates, index, template_name)
+    field_map = FieldMap(templates.compose(template_name))
+    report, results = run(events, field_map, strategy)
+    return report, bulk_index(client, results, index)
 
 
 @pytest.fixture(scope="module")
-def lenient_index(client, templates):
-    _create(client, templates, LENIENT_INDEX, "logs-app-lenient")
-    return LENIENT_INDEX
+def type_case_strict(client, templates):
+    _create(client, templates, "live-types-strict", "logs-app")
+    return "live-types-strict"
+
+
+@pytest.fixture(scope="module")
+def type_case_lenient(client, templates):
+    _create(client, templates, "live-types-lenient", "logs-app-lenient")
+    return "live-types-lenient"
+
+
+@pytest.fixture(scope="module")
+def strict_index(client, templates, events):
+    report, outcome = _load(client, templates, "live-strict", "logs-app", events, Strategy.STRICT)
+    return "live-strict", report, outcome
+
+
+@pytest.fixture(scope="module")
+def lenient_index(client, templates, events):
+    report, outcome = _load(
+        client,
+        templates,
+        "live-lenient",
+        "logs-app-lenient",
+        events,
+        Strategy.IGNORE_MALFORMED,
+    )
+    return "live-lenient", report, outcome
 
 
 def test_install_is_accepted_in_the_order_bootstrap_declares(client, templates):
@@ -87,9 +117,10 @@ def test_install_is_accepted_in_the_order_bootstrap_declares(client, templates):
     assert write_index_of(client, "logs-app") == "logs-app-000001"
 
 
-def test_the_composed_mapping_is_accepted_as_written(client, strict_index, templates):
+def test_the_composed_mapping_is_accepted_as_written(client, strict_index):
     """If this fails, the file is not a mapping, whatever the lint says."""
-    mapping = client.indices.get_mapping(index=strict_index)[strict_index]["mappings"]
+    index = strict_index[0]
+    mapping = client.indices.get_mapping(index=index)[index]["mappings"]
     assert mapping["dynamic"] == "strict"
     assert mapping["properties"]["labels"]["type"] == "flattened"
     assert mapping["properties"]["message"]["fields"]["raw"]["ignore_above"] == 1024
@@ -126,10 +157,10 @@ def test_the_type_table_agrees_with_the_parser(client, strict_index, lenient_ind
     node[parts[-1]] = case["value"]
 
     strict = client.options(ignore_status=400).index(
-        index=strict_index, id=f"case-{case_index}", document=document, refresh=True
+        index=type_case_strict, id=f"case-{case_index}", document=document, refresh=True
     )
     lenient = client.options(ignore_status=400).index(
-        index=lenient_index, id=f"case-{case_index}", document=document, refresh=True
+        index=type_case_lenient, id=f"case-{case_index}", document=document, refresh=True
     )
     strict_ok = strict.meta.status < 300
     lenient_ok = lenient.meta.status < 300
@@ -140,33 +171,25 @@ def test_the_type_table_agrees_with_the_parser(client, strict_index, lenient_ind
     elif case["verdict"] == "malformed":
         assert not strict_ok, f"{case} indexed under the strict mapping"
         assert lenient_ok, lenient.body
-        hit = client.get(index=lenient_index, id=f"case-{case_index}")
+        hit = client.get(index=type_case_lenient, id=f"case-{case_index}")
         assert case["field"] in (hit.body.get("_ignored") or [])
     else:
         assert not strict_ok, f"{case} indexed under the strict mapping"
         assert not lenient_ok, "ignore_malformed accepted an object sent to a scalar"
 
 
-def test_the_strict_mapping_rejects_exactly_what_the_report_said(client, strict_index, app, events):
-    from logsearch.client import bulk_index
-
-    field_map = FieldMap(app)
-    report, results = run(events, field_map, Strategy.STRICT)
-    outcome = bulk_index(client, results, strict_index)
+def test_the_strict_mapping_accepts_exactly_what_the_report_said(strict_index):
+    _, report, outcome = strict_index
     assert outcome.failed == 0, outcome.failures
     assert outcome.indexed + outcome.conflicts == report.accepted == 31
 
 
-def test_ignore_malformed_loses_the_fields_the_report_named(
-    client, lenient_index, templates, events
-):
-    from logsearch.client import bulk_index, ignored_fields
+def test_ignore_malformed_loses_the_fields_the_report_named(client, lenient_index):
+    from logsearch.client import ignored_fields
 
-    field_map = FieldMap(templates.compose("logs-app-lenient"))
-    report, results = run(events, field_map, Strategy.IGNORE_MALFORMED)
-    outcome = bulk_index(client, results, lenient_index)
+    index, report, outcome = lenient_index
     assert outcome.indexed + outcome.conflicts == report.accepted == 40
-    dropped = ignored_fields(client, lenient_index)
+    dropped = ignored_fields(client, index)
     # _ignored records the field and never the value it held.
     assert dropped.get("event.duration_ms") == 5
     assert dropped.get("client.ip") == 1
@@ -182,19 +205,18 @@ def test_a_term_query_on_an_analysed_field_finds_nothing(client, strict_index, a
     assert by_match["hits"]["total"]["value"] > 0
     # Which is why the builder will not emit the first one.
     with pytest.raises(FieldUsageError):
-        LogQuery(field_map).term("message", "Reconciled")
+        LogQuery(field_map).term("message", "Handled")
 
 
 def test_a_range_on_log_level_drops_the_errors(client, strict_index, app):
     """gte: 'warn' over a keyword excludes error and fatal, and returns 200."""
-    by_range = client.search(
-        index=strict_index, size=0, query={"range": {"log.level": {"gte": "warn"}}}
-    )
+    index, _, _ = strict_index
+    by_range = client.search(index=index, size=0, query={"range": {"log.level": {"gte": "warn"}}})
     body = LogQuery(FieldMap(app)).level_at_least("warn").page(0).body()
-    by_terms = client.search(index=strict_index, body=body)
+    by_terms = client.search(index=index, body=body)
     assert by_range["hits"]["total"]["value"] < by_terms["hits"]["total"]["value"]
     levels = client.search(
-        index=strict_index,
+        index=index,
         size=0,
         aggs={"levels": {"terms": {"field": "log.level", "size": 10}}},
     )

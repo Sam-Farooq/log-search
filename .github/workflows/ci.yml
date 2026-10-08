@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push: {branches: [main]}
+  pull_request:
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -e ".[dev]"
+      - run: ruff check logsearch tests
+      - run: ruff format --check .
+      - run: pytest -q
+      # The CLI is part of the product, so its exit codes are checked rather
+      # than assumed. `lint` is a gate and has to be 0 on the shipped files.
+      - run: logsearch lint
+      - run: logsearch lifecycle
+      - run: logsearch compare
+      - run: logsearch fields logs-audit
+      - run: logsearch explain message
+      - run: logsearch query --since now-1h --level warn --agg by-url.path > /dev/null
+      - run: logsearch bootstrap > /dev/null
+      # 1, because one message loses its keyword half to ignore_above and the
+      # report says so. A 0 here would mean the silent-loss count stopped
+      # working.
+      - name: ingest reports its one silent loss
+        run: |
+          logsearch ingest --strategy strict > /dev/null && code=0 || code=$?
+          test "$code" = "1"
+
+  cluster:
+    runs-on: ubuntu-latest
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          xpack.license.self_generated.type: basic
+          ES_JAVA_OPTS: -Xms1g -Xmx1g
+        ports:
+          - 9200:9200
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -e ".[dev]"
+      # No health-cmd on the service: the Elasticsearch image is not required
+      # to carry curl, and a health check that cannot run leaves the job
+      # waiting for a container that is already up. The runner has curl.
+      - name: wait for the cluster
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:9200/_cluster/health >/dev/null; then
+              curl -sS http://localhost:9200 | head -20
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "elasticsearch did not answer within 120s"
+          exit 1
+      # The only tests that can say whether logsearch/conflicts.py is right
+      # about Elasticsearch rather than merely consistent with itself.
+      - name: the live suite
+        env:
+          ELASTICSEARCH_URL: http://localhost:9200
+        run: pytest -m live -q
+      # Installing the real templates through the real API is its own check: a
+      # composed template with a typo in composed_of is rejected at PUT time,
+      # and that is the one mistake in this repo a cluster catches.
+      - name: install the templates and read them back
+        env:
+          ELASTICSEARCH_URL: http://localhost:9200
+        run: |
+          python -c "
+          from logsearch.client import connect, install, write_index_of
+          from logsearch.templates import TemplateSet
+          client = connect()
+          for name, result in install(client, TemplateSet()):
+              print(f'{name}: {result}')
+          print('logs-app write index:', write_index_of(client, 'logs-app'))
+          print('logs-audit write index:', write_index_of(client, 'logs-audit'))
+          "
+          curl -fsS http://localhost:9200/_index_template/logs-app | head -c 400
