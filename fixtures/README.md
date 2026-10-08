@@ -2,8 +2,9 @@
 
 Every line in these files was written for this repository. Nothing was captured
 from a service, a cluster, an agent or a log shipper. No part of this repo has
-ever been pointed at a running system, and the CI service container is the only
-Elasticsearch any of it has touched.
+ever been pointed at a running system. The only Elasticsearch it is ever pointed
+at is the service container declared in `.github/workflows/ci.yml`, and that
+workflow has not run, so nothing here has touched a cluster.
 
 They exist because the mapping problems worth writing about are rare in a sample
 of real traffic and are the whole content here, so they are present on purpose
@@ -40,7 +41,8 @@ which is the behaviour that template was written to have.
 
 ## type-cases.json
 
-The value and field pairs the `live`-marked tests replay against the CI service
-container, to check the verdicts in `logsearch/conflicts.py` against the parser
-they are a model of. A disagreement there means this repository is wrong about
-Elasticsearch, and that test is the only thing that can say so.
+The value and field pairs the `live`-marked tests are written to replay against
+the CI service container, to check the verdicts in `logsearch/conflicts.py`
+against the parser they are a model of. A disagreement there would mean this
+repository is wrong about Elasticsearch, and that test is the only thing that
+could say so. It has not run.

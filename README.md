@@ -3,8 +3,10 @@
 Log search over structured events in Elasticsearch 8. The index templates and
 the ILM policies are files, and they are the product: Python is the query
 builder, the ingest path, and the checks that stop a bad mapping being
-installed. Nothing here has run against a cluster except the CI service
-container.
+installed. Nothing here has run against a cluster. The only cluster it is ever
+pointed at is the Elasticsearch service container that
+`.github/workflows/ci.yml` declares, and that workflow has not run: this
+repository has no remote and nothing has been pushed.
 
 ```
 indices/                     ten JSON files, 12,971 bytes, the part that matters
@@ -125,9 +127,10 @@ What that costs, and it is not small:
 - **It is a model, not the parser.** `logsearch/conflicts.py` is this repo's
   idea of how Elasticsearch parses a value. Where the two disagree, this repo is
   wrong, and `fixtures/type-cases.json` plus the tests marked `live` are the only
-  thing that can say so: 18 value and field pairs replayed against the CI
+  thing that could say so: 18 value and field pairs to replay against the CI
   service container, where a verdict of `malformed` has to be rejected by the
-  strict mapping and land in `_ignored` under the lenient one.
+  strict mapping and land in `_ignored` under the lenient one. Those tests have
+  not run.
 
 ## keyword or text, and why `message` is both
 
@@ -161,9 +164,9 @@ message
 
 The refusal is the useful part. `{"term": {"message": "Handled"}}` is a valid
 query that returns zero hits and a 200, because the indexed terms were
-lowercased and the query term was not. A live test runs both halves of that
-against a cluster: the term query finds nothing, the match query finds the
-documents.
+lowercased and the query term was not. A live test is written to run both halves
+of that against a cluster: the term query finds nothing, the match query finds
+the documents. It needs a cluster, so it has not run.
 
 Multi-fields are not free. They are extra entries in the mapping and they count
 against `index.mapping.total_fields.limit`.
@@ -226,8 +229,8 @@ That flag is what lets a rollover happen without the writer knowing. ILM creates
 `logs-app-000002`, moves the flag, and the producer keeps posting to `logs-app`.
 An alias over more than one index with none of them claiming the write refuses
 every write, and that error arrives at the producer rather than anywhere near
-this repository. A live test rolls the alias and then writes through it again to
-check the new index receives the document.
+this repository. A live test is written to roll the alias and then write through
+it again, checking the new index receives the document.
 
 The bootstrap order is not a preference either. A composed index template is
 rejected at PUT time when `composed_of` names a component that does not exist,
@@ -301,9 +304,9 @@ Elasticsearch's own accounting for `total_fields.limit` can differ by the root
 object. So the limit is 200 against a count of 55: headroom instead of
 precision. What that gives up is early warning. A limit that sat at 60 would
 fail the build on the next component that added five fields, and 200 will not
-notice a hundred arriving one at a time. A live test does assert the direction
-that matters, by creating the index with a limit of 10 and checking the cluster
-refuses it.
+notice a hundred arriving one at a time. A live test is written for the
+direction that matters, creating the index with a limit of 10 and checking the
+cluster refuses it, and only a cluster can answer it.
 
 ## Running it
 
@@ -344,14 +347,22 @@ ruff check logsearch tests && ruff format --check .
 
 The templates are JSON, the field walk is a function over them, the value checks
 are pure and the query builder returns a dict, so the default suite needs
-nothing running. 27 more are marked `live` and deselected by default:
+nothing running. What has actually been run is exactly that: both lines above on
+one macOS 27.0.1 laptop under Python 3.11.17, 149 passed and 27 deselected,
+plus every command in the section above it. Nothing has run on a hosted runner,
+and nothing has run against a cluster.
+
+27 more tests are marked `live` and deselected by default:
 
 ```bash
 ELASTICSEARCH_URL=http://localhost:9200 pytest -m live
 ```
 
-CI runs those against an Elasticsearch 8.17.3 service container. They are the
-only tests here that can tell whether this repository is right about
+The `cluster` job in `.github/workflows/ci.yml` declares an Elasticsearch 8.17.3
+service container for them. That job has never executed: the repository has no
+remote, nothing has been pushed, and no Elasticsearch has been started by
+anything here. The workflow file is configuration, not a result. Those tests are
+the only ones here that could tell whether this repository is right about
 Elasticsearch rather than merely consistent with itself, and they carry the
 things no offline assertion reaches: the composed mapping being accepted as
 written, the 18 rows of the type table agreeing with the real parser, the term
@@ -378,7 +389,7 @@ codes, because a documented exit code nobody runs drifts.
   called a mapping conflict here. Not implemented.
 - **No searchable snapshots and no frozen tier.** Those need a snapshot
   repository, and there is no object store in this repo to point one at.
-- **No security, no TLS, no API keys.** The service container runs with
+- **No security, no TLS, no API keys.** The service container is declared with
   `xpack.security.enabled: false`. Nothing here has a credential, which is also
   why nothing here could reach a real cluster by accident.
 - **No analyzers of its own.** `message` uses the standard analyser. No
@@ -414,7 +425,8 @@ codes, because a documented exit code nobody runs drifts.
   seconds after the write succeeds. That is the trade for a tenth of the segment
   churn, and it is the wrong default for anyone debugging a live incident by
   tailing a query.
-- **Nothing here has run against a production cluster.** Every number in this
+- **Nothing here has run against any cluster, production or otherwise.** Every
+  number in this
   README is either arithmetic over the template files or the output of a command
   in it over `fixtures/`, and the fixtures were written for this repository
   rather than captured from anything. `fixtures/README.md` says which file

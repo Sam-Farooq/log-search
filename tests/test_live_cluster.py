@@ -2,8 +2,8 @@
 
 Everything else in this suite asserts that `logsearch.conflicts` agrees with
 itself. These assert that it agrees with Elasticsearch. They are marked `live`
-and excluded by default; CI runs them with `-m live` against the service
-container.
+and excluded by default; the CI workflow is configured to run them with
+`-m live` against a service container, and that workflow has not run.
 
     ELASTICSEARCH_URL=http://localhost:9200 pytest -m live
 """

@@ -2,7 +2,8 @@
   "_comment": [
     "One value, one mapped field, one expected verdict. Used twice: the offline",
     "suite asserts logsearch.conflicts agrees with this table, and the live-marked",
-    "test replays every row against the CI service container.",
+    "test is written to replay every row against the CI service container, which",
+    "has not run.",
     "",
     "A cluster cannot be asked for a verdict directly, so the live test reads it",
     "from behaviour. ok and coerced both index cleanly under the strict mapping.",

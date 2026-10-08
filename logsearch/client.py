@@ -2,8 +2,9 @@
 
 It is separate so the rest stays pure: the templates, the field walk, the value
 checks and the query builder are all offline, and the tests for them need
-nothing running. This module is exercised by the tests marked `live`, which run
-against the CI service container and nowhere else.
+nothing running. This module is exercised only by the tests marked `live`, which
+are configured to run against the CI service container and nowhere else, and
+that workflow has not run.
 """
 
 from __future__ import annotations

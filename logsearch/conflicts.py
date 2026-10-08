@@ -15,9 +15,11 @@ usual answers to it fail in three different ways.
                       it cannot, so the cluster only ever sees values its
                       mapping holds.
 
-The verdicts here are checked against a real cluster by the tests marked
-`live`, which run in CI against the service container. Where this model and
-Elasticsearch disagree, this model is wrong, and that test is how it is found.
+The verdicts here are meant to be checked against a real cluster by the tests
+marked `live`, which the CI workflow points at a service container. That
+workflow has not run, so the check is configuration rather than a result. Where
+this model and Elasticsearch disagree, this model is wrong, and that test is how
+it would be found.
 """
 
 from __future__ import annotations
