@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "description": "The catch-all. `labels` is one flattened field, so an arbitrary set of keys costs one entry in the mapping instead of one per key. Everything under it is indexed as a keyword, which is the price: a numeric label cannot be range-queried.",
+    "hand_authored": true
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "labels": {
+          "type": "flattened",
+          "depth_limit": 3,
+          "ignore_above": 256
+        },
+        "tags": {"type": "keyword"}
+      }
+    }
+  }
+}

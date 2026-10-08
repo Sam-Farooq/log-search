@@ -1,0 +1,96 @@
+{
+  "_meta": {
+    "description": "Fields every log index carries. `message` is a multi-field because the same text has to be searched and grouped, and those are two different index structures.",
+    "hand_authored": true
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "message": {
+          "type": "text",
+          "fields": {
+            "raw": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": {"type": "keyword"},
+            "logger": {"type": "keyword"},
+            "origin": {
+              "properties": {
+                "file": {
+                  "properties": {
+                    "name": {"type": "keyword"},
+                    "line": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "id": {"type": "keyword"},
+            "dataset": {"type": "keyword"},
+            "outcome": {"type": "keyword"},
+            "duration_ms": {"type": "long"},
+            "sequence": {"type": "long"}
+          }
+        },
+        "service": {
+          "properties": {
+            "name": {"type": "keyword"},
+            "version": {"type": "keyword"},
+            "environment": {"type": "keyword"}
+          }
+        },
+        "host": {
+          "properties": {
+            "name": {"type": "keyword"}
+          }
+        },
+        "container": {
+          "properties": {
+            "id": {"type": "keyword"}
+          }
+        },
+        "trace": {
+          "properties": {
+            "id": {"type": "keyword"}
+          }
+        },
+        "span": {
+          "properties": {
+            "id": {"type": "keyword"}
+          }
+        },
+        "error": {
+          "properties": {
+            "type": {"type": "keyword"},
+            "message": {
+              "type": "text",
+              "fields": {
+                "raw": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "stack_trace": {
+              "type": "text",
+              "norms": false,
+              "index_options": "docs"
+            }
+          }
+        }
+      }
+    }
+  }
+}

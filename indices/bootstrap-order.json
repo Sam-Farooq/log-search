@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "The order Elasticsearch requires, not a preference. A composed index",
+    "template is rejected at PUT time when composed_of names a component that",
+    "does not exist yet, so components come first. An ILM policy named by a",
+    "template is NOT checked at PUT time: get that order wrong and the template",
+    "installs cleanly, then every index it creates sits with no lifecycle until",
+    "someone looks. So policies go first too.",
+    "",
+    "The last step is the one people forget. A rollover alias has to exist",
+    "before the first write, and it has to be created with is_write_index true,",
+    "because an alias pointing at more than one index refuses writes and the",
+    "error arrives at the producer rather than here."
+  ],
+  "steps": [
+    {"kind": "ilm_policy", "name": "logs-app", "file": "ilm-logs-app.json"},
+    {"kind": "ilm_policy", "name": "logs-audit", "file": "ilm-logs-audit.json"},
+    {"kind": "component_template", "name": "logs-settings", "file": "component-logs-settings.json"},
+    {"kind": "component_template", "name": "logs-base", "file": "component-logs-base.json"},
+    {"kind": "component_template", "name": "logs-http", "file": "component-logs-http.json"},
+    {"kind": "component_template", "name": "logs-labels", "file": "component-logs-labels.json"},
+    {"kind": "index_template", "name": "logs-app", "file": "template-logs-app.json"},
+    {"kind": "index_template", "name": "logs-audit", "file": "template-logs-audit.json"},
+    {"kind": "write_index", "name": "logs-app-000001", "alias": "logs-app"},
+    {"kind": "write_index", "name": "logs-audit-000001", "alias": "logs-audit"}
+  ]
+}

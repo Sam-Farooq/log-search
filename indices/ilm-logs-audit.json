@@ -1,0 +1,40 @@
+{
+  "policy": {
+    "_meta": {
+      "write_alias": "logs-audit",
+      "description": "Audit records are kept for a year, so the rollover window is weekly rather than daily: a daily roll at this volume would leave 366 indices and the shard count is the cost, not the bytes.",
+      "hand_authored": true
+    },
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "20gb",
+            "max_age": "7d"
+          },
+          "set_priority": {"priority": 100}
+        }
+      },
+      "warm": {
+        "min_age": "30d",
+        "actions": {
+          "forcemerge": {"max_num_segments": 1},
+          "set_priority": {"priority": 50}
+        }
+      },
+      "cold": {
+        "min_age": "90d",
+        "actions": {
+          "readonly": {},
+          "set_priority": {"priority": 0}
+        }
+      },
+      "delete": {
+        "min_age": "365d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}

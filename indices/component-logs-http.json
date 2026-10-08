@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "description": "HTTP fields. url.path is a keyword first because the useful questions are counts per route; the text multi-field exists so a path fragment can be searched without a leading wildcard.",
+    "hand_authored": true
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "http": {
+          "properties": {
+            "version": {"type": "keyword"},
+            "request": {
+              "properties": {
+                "method": {"type": "keyword"},
+                "bytes": {"type": "long"}
+              }
+            },
+            "response": {
+              "properties": {
+                "status_code": {"type": "short"},
+                "bytes": {"type": "long"}
+              }
+            }
+          }
+        },
+        "url": {
+          "properties": {
+            "domain": {"type": "keyword"},
+            "path": {
+              "type": "keyword",
+              "ignore_above": 1024,
+              "fields": {
+                "text": {"type": "text"}
+              }
+            },
+            "query": {
+              "type": "keyword",
+              "ignore_above": 2048,
+              "index": false
+            }
+          }
+        },
+        "client": {
+          "properties": {
+            "ip": {"type": "ip"}
+          }
+        },
+        "user_agent": {
+          "properties": {
+            "original": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        }
+      }
+    }
+  }
+}

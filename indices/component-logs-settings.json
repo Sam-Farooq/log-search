@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "description": "Shared index settings. One primary shard because the rollover size is the shard size: max_primary_shard_size is per primary, so two primaries double the index. total_fields.limit is set with headroom over the composed count that `logsearch lint` reports.",
+    "hand_authored": true
+  },
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1,
+        "refresh_interval": "10s",
+        "codec": "best_compression",
+        "max_result_window": 10000,
+        "query": {
+          "default_field": ["message", "error.message"]
+        },
+        "mapping": {
+          "total_fields": {
+            "limit": 200
+          },
+          "depth_limit": 6,
+          "nested_fields": {
+            "limit": 0
+          },
+          "ignore_malformed": false
+        },
+        "sort": {
+          "field": ["@timestamp"],
+          "order": ["desc"]
+        }
+      }
+    }
+  }
+}

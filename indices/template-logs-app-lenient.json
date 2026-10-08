@@ -1,0 +1,42 @@
+{
+  "index_patterns": ["logs-app-*"],
+  "priority": 400,
+  "composed_of": [
+    "logs-settings",
+    "logs-base",
+    "logs-http",
+    "logs-labels"
+  ],
+  "_meta": {
+    "installed": false,
+    "write_alias": "logs-app",
+    "allow_ignore_malformed": true,
+    "description": "NOT INSTALLED. The same template with two parameters changed, kept so `logsearch compare` has a second mapping to run the fixtures through instead of inventing one in memory. Its priority is higher than the installed template's, so putting this on a cluster would take over logs-app-* at the next rollover and nothing would report an error.",
+    "hand_authored": true
+  },
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "logs-app",
+          "rollover_alias": "logs-app"
+        },
+        "mapping": {
+          "ignore_malformed": true
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": false,
+      "_source": {"enabled": true},
+      "properties": {
+        "data_stream": {
+          "properties": {
+            "dataset": {"type": "keyword"},
+            "namespace": {"type": "keyword"}
+          }
+        }
+      }
+    }
+  }
+}

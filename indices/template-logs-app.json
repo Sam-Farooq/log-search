@@ -1,0 +1,39 @@
+{
+  "index_patterns": ["logs-app-*"],
+  "priority": 300,
+  "composed_of": [
+    "logs-settings",
+    "logs-base",
+    "logs-http",
+    "logs-labels"
+  ],
+  "_meta": {
+    "installed": true,
+    "write_alias": "logs-app",
+    "allow_ignore_malformed": false,
+    "description": "Application logs from HTTP services. dynamic is strict, so an unmapped key is a rejected document and the ingest path has to route unknown keys into `labels` before sending. Hand authored; nothing here was exported from a cluster.",
+    "hand_authored": true
+  },
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "logs-app",
+          "rollover_alias": "logs-app"
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "_source": {"enabled": true},
+      "properties": {
+        "data_stream": {
+          "properties": {
+            "dataset": {"type": "keyword"},
+            "namespace": {"type": "keyword"}
+          }
+        }
+      }
+    }
+  }
+}

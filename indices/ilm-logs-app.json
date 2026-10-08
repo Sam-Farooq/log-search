@@ -1,0 +1,40 @@
+{
+  "policy": {
+    "_meta": {
+      "write_alias": "logs-app",
+      "description": "Roll daily or at 30gb per primary, merge once writing stops, freeze reads at a week, delete at 30 days. min_age is measured from the rollover date for an index that has rolled over, not from its creation date, which is why the warm transition at 2d does not fire on an index that is still the write index.",
+      "hand_authored": true
+    },
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "30gb",
+            "max_age": "1d"
+          },
+          "set_priority": {"priority": 100}
+        }
+      },
+      "warm": {
+        "min_age": "2d",
+        "actions": {
+          "forcemerge": {"max_num_segments": 1},
+          "set_priority": {"priority": 50}
+        }
+      },
+      "cold": {
+        "min_age": "7d",
+        "actions": {
+          "readonly": {},
+          "set_priority": {"priority": 0}
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
