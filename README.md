@@ -24,7 +24,7 @@ logsearch/conflicts.py       what happens to a value the mapping cannot hold
 logsearch/ingest.py          three strategies for that, run over the same events
 logsearch/query.py           search bodies that only name fields that exist
 logsearch/lifecycle.py       phase transitions, and the ceiling they imply
-logsearch/lint.py            twenty checks, run before anything is installed
+logsearch/lint.py            nineteen findings, before anything is installed
 logsearch/client.py          the official client. The only file that connects
 fixtures/                    42 events written for this repo, 19 of them wrong
 ```
@@ -284,8 +284,8 @@ NOTE  uninstalled_wins logs-app-lenient: not installed, and its priority 400 is 
 3 index templates, 4 components, 2 policies: 0 errors, 7 notes
 ```
 
-Twenty checks, and with one exception every one of them is a mistake a cluster
-accepts. The exception is a typo in `composed_of`, which Elasticsearch rejects
+Nineteen finding codes, and with one exception every one of them is a mistake a
+cluster accepts. The exception is a typo in `composed_of`, which Elasticsearch rejects
 itself. The rest install cleanly and go wrong later: `dynamic` left at true, a
 `_meta.catch_all` that names a field the composed mapping does not have,
 `dynamic: false` with no catch-all, `ignore_malformed` set without permission in
@@ -338,7 +338,7 @@ that zero is not a gate.
 ## Tests
 
 ```bash
-pytest -q                 # 147 tests, no cluster, no network, no key
+pytest -q                 # 148 tests, no cluster, no network, no key
 ruff check logsearch tests && ruff format --check .
 ```
 

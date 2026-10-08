@@ -25,6 +25,45 @@ def test_the_shipped_templates_have_no_errors(templates):
     assert all(f.level is Level.NOTE for f in findings)
 
 
+def test_the_finding_codes_are_the_set_the_readme_counts():
+    """Nineteen, and the README says nineteen. One of the two had to be a test."""
+    import ast
+
+    tree = ast.parse((Path(__file__).resolve().parent.parent / "logsearch" / "lint.py").read_text())
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Finding":
+            if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+                found.add(node.args[1].value)
+            for keyword in node.keywords:
+                if keyword.arg == "code" and isinstance(keyword.value, ast.Constant):
+                    found.add(keyword.value.value)
+    assert len(found) == 19
+    assert found == {
+        "bootstrap",
+        "bootstrap_order",
+        "builder_field",
+        "catch_all",
+        "ceiling",
+        "composition",
+        "date_format",
+        "dynamic",
+        "forcemerge",
+        "ignore_malformed",
+        "lifecycle",
+        "no_keyword_sibling",
+        "pattern_overlap",
+        "phase_order",
+        "rollover",
+        "rollover_alias",
+        "total_fields",
+        "uninstalled_wins",
+        "write_index",
+    }
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+    assert "Nineteen finding codes" in readme
+
+
 def test_the_notes_carry_the_numbers_a_reader_came_for(templates):
     findings = {(f.code, f.subject): f.message for f in lint(templates)}
     assert "55 fields of 200, 145 spare" in findings[("total_fields", "logs-app")]
