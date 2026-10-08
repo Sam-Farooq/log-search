@@ -92,23 +92,49 @@ class IngestReport:
 def leaf_paths(
     document: dict[str, Any], field_map: FieldMap, prefix: str = ""
 ) -> list[tuple[str, Any]]:
-    """Dotted path and value for every leaf, stopping at a flattened root.
+    """Dotted path and value for every point where the mapping stops.
 
-    Everything under a flattened field is one value as far as the mapping is
-    concerned, so descending into it would invent field paths that will never
-    exist.
+    The walk descends only through keys the mapping declares as objects. It
+    stops at three other kinds of key, and each stop matters:
+
+    a mapped leaf, because the value belongs to that field whatever shape it
+    arrived in. Descending into an object sent to `event.duration_ms` invents
+    `event.duration_ms.value`, a path that can never exist, and then reports
+    an unknown key instead of the type conflict that is actually there;
+
+    a flattened root, because everything under it is one value as far as the
+    mapping is concerned;
+
+    an unmapped key, at the shallowest point it is unmapped, because that is
+    where Elasticsearch stops too. A strict mapping handed `{"k8s": {...}}`
+    names `[k8s]` in the exception, not a leaf three levels down.
     """
     out: list[tuple[str, Any]] = []
     for key, value in document.items():
         path = f"{prefix}{key}"
         mapped = field_map.get(path)
-        if mapped is not None and mapped.type == "flattened":
+        if mapped is None or mapped.kind != "object":
             out.append((path, value))
             continue
         if isinstance(value, dict) and value:
             out.extend(leaf_paths(value, field_map, f"{path}."))
         else:
             out.append((path, value))
+    return out
+
+
+def dotted_keys(value: Any, prefix: str) -> dict[str, Any]:
+    """Flatten an unmapped subtree into dotted keys for the catch-all.
+
+    A flattened field has a depth_limit, so putting the subtree in whole can
+    cost the whole value. Dotted keys stay at depth one and read the same way
+    in a query.
+    """
+    if not isinstance(value, dict) or not value:
+        return {prefix: value}
+    out: dict[str, Any] = {}
+    for key, sub in value.items():
+        out.update(dotted_keys(sub, f"{prefix}.{key}"))
     return out
 
 
@@ -157,6 +183,17 @@ def prepare(raw: dict[str, Any], field_map: FieldMap, strategy: Strategy) -> Doc
         check = check_value(value, mapped, field_map.definition(path))
         if not _handle_checked(result, path, value, check, strategy):
             return result
+        # A multi-field is a second index structure over the same value, and it
+        # can fail on its own. `message` is text with no length limit and
+        # `message.raw` is a keyword with ignore_above 1024, so a long line is
+        # searchable and ungroupable at the same time, with nothing in the
+        # write response to say which half is missing.
+        for sub_path, sub_field in field_map.multi_fields_of(path):
+            sub_check = check_value(value, sub_field, field_map.definition(sub_path))
+            if not sub_check.indexed:
+                result.not_indexed.append(
+                    FieldOutcome(sub_path, sub_check.verdict, sub_check.reason, value)
+                )
 
     if extras and catch_all:
         existing = result.document.setdefault(catch_all, {}) if result.document else {}
@@ -178,8 +215,9 @@ def _handle_unmapped(
     extras: dict[str, Any],
 ) -> None:
     if catch_all is not None and strategy in {Strategy.STRICT, Strategy.NORMALIZE}:
-        extras[path] = value
-        result.routed_to_catch_all.append(path)
+        routed = dotted_keys(value, path)
+        extras.update(routed)
+        result.routed_to_catch_all.extend(sorted(routed))
         return
     if dynamic == "strict":
         result.accepted = False

@@ -236,6 +236,14 @@ class FieldMap:
                 return root
         return None
 
+    def multi_fields_of(self, path: str) -> list[tuple[str, Field]]:
+        """The multi-fields declared under one field path."""
+        return [
+            (candidate.path, candidate)
+            for candidate in self.fields.values()
+            if candidate.kind == "multi" and candidate.path.rsplit(".", 1)[0] == path
+        ]
+
     def aggregatable_sibling(self, path: str) -> str | None:
         """The aggregatable half of a multi-field pair, from either side.
 

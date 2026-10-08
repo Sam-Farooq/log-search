@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "One value, one mapped field, one expected verdict. Used twice: the offline",
+    "suite asserts logsearch.conflicts agrees with this table, and the live-marked",
+    "test replays every row against the CI service container.",
+    "",
+    "A cluster cannot be asked for a verdict directly, so the live test reads it",
+    "from behaviour. ok and coerced both index cleanly under the strict mapping.",
+    "malformed is rejected by the strict mapping and accepted by the lenient one",
+    "with the field named in _ignored. shape is rejected by both, because",
+    "ignore_malformed does not cover an object sent to a scalar field.",
+    "",
+    "ok and coerced are not distinguished there, only here."
+  ],
+  "cases": [
+    {"field": "event.duration_ms", "value": 1400, "verdict": "ok"},
+    {"field": "event.duration_ms", "value": "1400", "verdict": "coerced"},
+    {"field": "event.duration_ms", "value": "1.4s", "verdict": "malformed"},
+    {"field": "event.duration_ms", "value": true, "verdict": "malformed"},
+    {"field": "event.duration_ms", "value": {"value": 1400, "unit": "ms"}, "verdict": "shape"},
+    {"field": "http.response.status_code", "value": 200, "verdict": "ok"},
+    {"field": "http.response.status_code", "value": "503", "verdict": "coerced"},
+    {"field": "http.response.status_code", "value": 70000, "verdict": "malformed"},
+    {"field": "@timestamp", "value": "2026-03-04T10:00:00Z", "verdict": "ok"},
+    {"field": "@timestamp", "value": 1772000000000, "verdict": "ok"},
+    {"field": "@timestamp", "value": "2026-03-07 13:30:00 PST", "verdict": "malformed"},
+    {"field": "@timestamp", "value": "not-a-date", "verdict": "malformed"},
+    {"field": "client.ip", "value": "10.2.0.1", "verdict": "ok"},
+    {"field": "client.ip", "value": "10.0.0.300", "verdict": "malformed"},
+    {"field": "log.level", "value": "warn", "verdict": "ok"},
+    {"field": "log.level", "value": 7, "verdict": "coerced"},
+    {"field": "message", "value": "upstream did not answer", "verdict": "ok"},
+    {"field": "labels", "value": {"tenant": "acme"}, "verdict": "ok"}
+  ]
+}
