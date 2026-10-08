@@ -10,6 +10,7 @@
   "_meta": {
     "installed": true,
     "write_alias": "logs-app",
+    "catch_all": "labels",
     "allow_ignore_malformed": false,
     "description": "Application logs from HTTP services. dynamic is strict, so an unmapped key is a rejected document and the ingest path has to route unknown keys into `labels` before sending. Hand authored; nothing here was exported from a cluster.",
     "hand_authored": true

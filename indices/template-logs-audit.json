@@ -8,6 +8,7 @@
   "_meta": {
     "installed": true,
     "write_alias": "logs-audit",
+    "catch_all": false,
     "allow_ignore_malformed": false,
     "description": "Audit records from one internal library, so the field set is closed and there is no catch-all. No `labels` here on purpose: an arbitrary key that reaches the index comes from a request body, and a mapping explosion in the index you are least allowed to delete is not a recoverable mistake. A rejected audit write is the correct outcome.",
     "hand_authored": true
