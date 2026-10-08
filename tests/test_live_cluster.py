@@ -197,7 +197,7 @@ def test_ignore_malformed_loses_the_fields_the_report_named(client, lenient_inde
 
 
 def test_a_term_query_on_an_analysed_field_finds_nothing(client, strict_index, app):
-    """The refusal in resolve(), demonstrated rather than asserted."""
+    """The refusal in resolve(), run against a cluster rather than asserted."""
     field_map = FieldMap(app)
     by_term = client.search(index=strict_index, size=0, query={"term": {"message": "Reconciled"}})
     by_match = client.search(index=strict_index, size=0, query={"match": {"message": "Reconciled"}})
