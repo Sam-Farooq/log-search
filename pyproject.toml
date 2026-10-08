@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "log-search"
+# The mappings are settled and the query builder's refusals are tested. What is
+# not settled is whether `labels` should stay one flattened field or become a
+# pair of them split by value type, which would let numeric labels be
+# range-queried and would change every document already written. That decision
+# moves the templates, so this stays pre-1.0.
+version = "0.13.2"
+description = "Index templates, an ILM policy and a query builder for structured logs in Elasticsearch 8"
+requires-python = ">=3.11"
+dependencies = [
+    "elasticsearch>=8.14,<9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.16.10"]
+
+[project.scripts]
+logsearch = "logsearch.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["logsearch*"]
+
+[tool.setuptools.package-data]
+logsearch = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: needs a running Elasticsearch. Runs in CI against the service container only.",
+]
+# The live tests are opt-in. Everything else is pure, so the default run needs
+# no cluster and no network.
+addopts = "-m 'not live'"
