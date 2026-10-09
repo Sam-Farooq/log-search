@@ -137,11 +137,13 @@ def test_a_field_limit_below_the_mapping_is_rejected_by_the_cluster(client, temp
             settings={"index.mapping.total_fields.limit": 10},
             mappings=composed.mappings,
         )
-    assert "limit of total fields" in str(caught.value)
+    assert "limit of total fields" in str(caught.value).lower()
 
 
 @pytest.mark.parametrize("case_index", range(len(TYPE_CASES)), ids=[c["field"] for c in TYPE_CASES])
-def test_the_type_table_agrees_with_the_parser(client, strict_index, lenient_index, case_index):
+def test_the_type_table_agrees_with_the_parser(
+    client, type_case_strict, type_case_lenient, case_index
+):
     """One row of fixtures/type-cases.json, replayed against both mappings.
 
     ok and coerced index cleanly under strict. malformed is rejected by strict
@@ -199,8 +201,9 @@ def test_ignore_malformed_loses_the_fields_the_report_named(client, lenient_inde
 def test_a_term_query_on_an_analysed_field_finds_nothing(client, strict_index, app):
     """The refusal in resolve(), run against a cluster rather than asserted."""
     field_map = FieldMap(app)
-    by_term = client.search(index=strict_index, size=0, query={"term": {"message": "Reconciled"}})
-    by_match = client.search(index=strict_index, size=0, query={"match": {"message": "Reconciled"}})
+    index = strict_index[0]
+    by_term = client.search(index=index, size=0, query={"term": {"message": "Reconciled"}})
+    by_match = client.search(index=index, size=0, query={"match": {"message": "Reconciled"}})
     assert by_term["hits"]["total"]["value"] == 0
     assert by_match["hits"]["total"]["value"] > 0
     # Which is why the builder will not emit the first one.
@@ -227,11 +230,13 @@ def test_a_range_on_log_level_drops_the_errors(client, strict_index, app):
 def test_an_aggregation_on_a_text_field_is_refused_by_the_cluster(client, strict_index):
     import elasticsearch
 
+    index = strict_index[0]
+
     with pytest.raises(elasticsearch.BadRequestError) as caught:
-        client.search(index=strict_index, size=0, aggs={"m": {"terms": {"field": "message"}}})
+        client.search(index=index, size=0, aggs={"m": {"terms": {"field": "message"}}})
     assert "Fielddata is disabled" in str(caught.value)
     on_the_keyword = client.search(
-        index=strict_index, size=0, aggs={"m": {"terms": {"field": "message.raw"}}}
+        index=index, size=0, aggs={"m": {"terms": {"field": "message.raw"}}}
     )
     assert on_the_keyword["aggregations"]["m"]["buckets"]
 

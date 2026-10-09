@@ -244,7 +244,7 @@ def test_compare_puts_the_three_strategies_in_one_table(capsys):
     assert "42 events, three strategies" in out
     for line in out.splitlines():
         if line.startswith("ignore-malformed"):
-            assert line.split()[1:] == ["40", "2", "0", "14", "0"]
+            assert line.split()[1:] == ["39", "3", "0", "13", "0"]
             break
     else:  # pragma: no cover
         pytest.fail("no ignore-malformed row")

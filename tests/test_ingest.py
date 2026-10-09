@@ -84,13 +84,16 @@ def test_strict_rejects_malformed_values_and_still_loses_one_thing(events, stric
 
 def test_ignore_malformed_accepts_nearly_everything_and_loses_values(events, lenient_map):
     report, _ = run(events, lenient_map, Strategy.IGNORE_MALFORMED)
-    assert report.accepted == 40
+    assert report.accepted == 39
     # Not zero, and this is the part people expect ignore_malformed to cover.
-    # The two documents sending an object to a scalar field are rejected here
-    # exactly as they are under the strict mapping.
-    assert report.rejected == 2
-    assert report.documents_with_silent_loss == 13
-    assert report.silently_lost_values == 14
+    # Three documents are rejected here exactly as they are under the strict
+    # mapping: two send an object to a scalar field, and the third nests labels
+    # deeper than the flattened depth_limit. A real cluster rejected that third
+    # one with document_parsing_exception, which is how it stopped being
+    # counted as a loss ignore_malformed absorbs.
+    assert report.rejected == 3
+    assert report.documents_with_silent_loss == 12
+    assert report.silently_lost_values == 13
     assert report.silent_field_losses["event.duration_ms"] == 5
     assert report.silent_field_losses["@timestamp"] == 1
     assert report.silent_field_losses["client.ip"] == 1
@@ -118,10 +121,12 @@ def test_the_three_strategies_disagree_about_the_same_42_events(events, strict_m
     normalized, _ = run(events, strict_map, Strategy.NORMALIZE)
     # The number that matters: values that ended up neither indexed nor
     # reported anywhere a writer would look.
-    assert (strict.silently_lost_values, lenient.silently_lost_values) == (1, 14)
+    assert (strict.silently_lost_values, lenient.silently_lost_values) == (1, 13)
     assert normalized.silently_lost_values == 1
     # And how many of the 42 events reached the index at all.
-    assert (strict.accepted, lenient.accepted, normalized.accepted) == (31, 40, 36)
+    # 39 is also exactly what a real Elasticsearch indexed from the same 42
+    # events under the lenient mapping, which is the point of the live suite.
+    assert (strict.accepted, lenient.accepted, normalized.accepted) == (31, 39, 36)
     # The one loss the strict and normalize columns share is the same field in
     # the same event, and it is ignore_above rather than a type conflict.
     assert set(strict.silent_field_losses) == set(normalized.silent_field_losses) == {"message.raw"}

@@ -46,7 +46,7 @@ logsearch compare
                    accepted rejected  held back  lost quietly  repaired
 -----------------------------------------------------------------------
 strict                   31       11          0             1         0
-ignore-malformed         40        2          0            14         0
+ignore-malformed         39        3          0            13         0
 normalize                36        0          6             1         5
 ```
 
@@ -57,6 +57,16 @@ normalize                36        0          6             1         5
   from every query, every aggregation and every dashboard built on it.
 
 The third column is the one worth arguing about, so it gets its own section.
+
+The `ignore-malformed` row used to read 40, 2 and 14. A real Elasticsearch
+indexed 39 of those 42 events, not 40, and the one document the model and the
+cluster disagreed about is the interesting one: `labels` nested deeper than the
+flattened `depth_limit`. **`ignore_malformed` does not cover that.**
+Elasticsearch raises `document_parsing_exception` and drops the whole document
+under every strategy, where this project had predicted the field would be
+dropped and the document kept. The verdict is now `shape` rather than
+`malformed`, which is the category for "the cluster rejects it and no strategy
+helps", and every number derived from it moved.
 
 ## What ignore_malformed loses
 

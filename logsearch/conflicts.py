@@ -59,7 +59,15 @@ class Verdict(StrEnum):
     MALFORMED = "malformed"
     """The parser for this field's type refuses the value."""
     SHAPE = "shape"
-    """An object was given to a field mapped as a scalar. ignore_malformed does not cover it."""
+    """Elasticsearch raises document_parsing_exception and ignore_malformed does
+    not cover it, so the whole document is rejected whatever the strategy.
+
+    Two cases reach this. An object given to a field mapped as a scalar, and a
+    flattened field nested deeper than its depth_limit. The second one was
+    classified MALFORMED until a real cluster disagreed: the lenient mapping
+    rejected e-0042 with document_parsing_exception on labels, where this model
+    had predicted ignore_malformed would absorb it and index the document with
+    the field unindexed."""
     OVER_IGNORE_ABOVE = "over_ignore_above"
     """A keyword longer than ignore_above. Stored in _source, absent from the index."""
     UNMAPPED = "unmapped"
@@ -268,7 +276,11 @@ def _check_text(value: Any, path: str) -> Check:
 def _check_flattened(value: Any, field: Field, path: str, limit: int, depth: int = 1) -> Check:
     if isinstance(value, dict):
         if depth > limit:
-            return Check(Verdict.MALFORMED, f"{path}: nested deeper than depth_limit {limit}")
+            # SHAPE, not MALFORMED: ignore_malformed does not rescue a flattened
+            # field that is too deep. Elasticsearch raises
+            # document_parsing_exception and drops the document under every
+            # strategy, which is what the first live run showed.
+            return Check(Verdict.SHAPE, f"{path}: nested deeper than depth_limit {limit}")
         for key, sub in value.items():
             check = _check_flattened(sub, field, f"{path}.{key}", limit, depth + 1)
             if check.verdict is not Verdict.OK:

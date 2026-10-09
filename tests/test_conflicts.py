@@ -92,7 +92,10 @@ def test_flattened_depth_limit_comes_from_the_file(app_fields):
     assert app_fields.definition("labels")["depth_limit"] == 3
     assert check(app_fields, "labels", {"a": {"b": "c"}}).verdict is Verdict.OK
     too_deep = check(app_fields, "labels", {"a": {"b": {"c": {"d": "e"}}}})
-    assert too_deep.verdict is Verdict.MALFORMED
+    # SHAPE rather than MALFORMED, because ignore_malformed does not cover it.
+    # A live cluster rejected the too-deep document under the lenient mapping
+    # with document_parsing_exception, which is the SHAPE path.
+    assert too_deep.verdict is Verdict.SHAPE
     assert "depth_limit 3" in too_deep.reason
 
 
