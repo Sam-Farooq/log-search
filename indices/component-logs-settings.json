@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "description": "Shared index settings. One primary shard because the rollover size is the shard size: max_primary_shard_size is per primary, so two primaries double the index. total_fields.limit is set with headroom over the composed count that `logsearch lint` reports.",
+    "description": "Shared index settings. One primary shard because the rollover size is the shard size: max_primary_shard_size is per primary, so two primaries double the index. total_fields.limit is set with headroom over the composed count that `logsearch lint` reports. depth.limit is nested like its siblings: the index setting is index.mapping.depth.limit, and depth_limit with an underscore is the flattened FIELD parameter, which is a different thing in a different place. Elasticsearch rejects the whole template for the wrong one.",
     "hand_authored": true
   },
   "template": {
@@ -18,7 +18,9 @@
           "total_fields": {
             "limit": 200
           },
-          "depth_limit": 6,
+          "depth": {
+            "limit": 6
+          },
           "nested_fields": {
             "limit": 0
           },

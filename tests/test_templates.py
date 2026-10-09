@@ -128,3 +128,38 @@ def test_bootstrap_references_every_installed_file_and_nothing_else(templates, i
         and json.loads(p.read_text(encoding="utf-8")).get("_meta", {}).get("installed", True)
     }
     assert referenced == expected
+
+
+def test_mapping_limits_use_the_nested_setting_names(app):
+    """`index.mapping.depth.limit`, not `depth_limit`.
+
+    Elasticsearch has two things called a depth limit and they are not
+    interchangeable. `index.mapping.depth.limit` is an index SETTING and nests
+    like its siblings total_fields and nested_fields. `depth_limit` with an
+    underscore is a parameter on a `flattened` FIELD, which is where
+    component-logs-labels.json correctly uses it.
+
+    Writing the field spelling into the settings block makes Elasticsearch
+    reject the entire template with `unknown setting
+    [index.mapping.depth_limit] did you mean [index.mapping.depth.limit]?`,
+    which is exactly what the first real cluster run reported. Nothing offline
+    could see it, because every other test here asserts on the dict this
+    project builds rather than on whether a cluster accepts it.
+    """
+    # Asserted on the flattened keys, because the dotted name is exactly the
+    # string Elasticsearch validates.
+    assert app.settings["index.mapping.depth.limit"] == 6
+    assert "index.mapping.depth_limit" not in app.settings, (
+        "that is the flattened field parameter, not the index setting"
+    )
+    # The siblings, pinned so the shape stays consistent.
+    assert app.settings["index.mapping.total_fields.limit"] == 200
+    assert app.settings["index.mapping.nested_fields.limit"] == 0
+
+
+def test_the_flattened_field_keeps_the_underscore_spelling(app):
+    """And the field parameter must NOT be nested, which is the mirror mistake."""
+    labels = app.mappings["properties"]["labels"]
+    assert labels["type"] == "flattened"
+    assert labels["depth_limit"] == 3
+    assert "depth" not in labels

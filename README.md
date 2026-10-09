@@ -349,11 +349,11 @@ ruff check logsearch tests && ruff format --check .
 The templates are JSON, the field walk is a function over them, the value checks
 are pure and the query builder returns a dict, so the default suite needs
 nothing running. What has actually been run is exactly that: both lines above on
-one macOS 27.0.1 laptop under Python 3.11.17, 155 passed and 27 deselected,
+one macOS 27.0.1 laptop under Python 3.11.17, 157 passed and 27 deselected,
 plus every command in the section above it. Nothing has run on a hosted runner,
 and nothing has run against a cluster.
 
-155 of those tests, up from 151: four of them compare the README against the
+157 of those tests, up from 151: four of them compare the README against the
 workflow rather than exercising the CLI, because the claim that CI runs every
 documented command is the kind that nothing else could contradict.
 
