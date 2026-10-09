@@ -15,22 +15,45 @@ jobs:
       - run: ruff check logsearch tests
       - run: ruff format --check .
       - run: pytest -q
-      # The CLI is part of the product, so its exit codes are checked rather
-      # than assumed. `lint` is a gate and has to be 0 on the shipped files.
+      # Every `logsearch` invocation that appears in a shell block in the
+      # README, in the form the README writes it, because a documented command
+      # nobody runs rots. The correspondence is pinned by
+      # tests/test_cli.py::test_every_documented_invocation_is_in_the_offline_ci_job,
+      # so adding a command to the README without adding it here fails above.
       - run: logsearch lint
       - run: logsearch lifecycle
       - run: logsearch compare
-      - run: logsearch fields logs-audit
+      - run: logsearch fields logs-app --grep url
       - run: logsearch explain message
-      - run: logsearch query --since now-1h --level warn --agg by-url.path > /dev/null
+      - run: logsearch explain log.level
       - run: logsearch bootstrap > /dev/null
-      # 1, because one message loses its keyword half to ignore_above and the
-      # report says so. A 0 here would mean the silent-loss count stopped
-      # working.
-      - name: ingest reports its one silent loss
+      - run: logsearch query --dropped event.duration_ms > /dev/null
+      - run: logsearch query --since now-1h --service checkout-api --level warn --message timeout --agg by-url.path --agg over-time > /dev/null
+      # Not in the README. The audit template is the one with no catch-all, so
+      # its composed mapping is worth walking as well.
+      - run: logsearch fields logs-audit
+      # The exit codes from the README's table, asserted rather than assumed.
+      # 1 is a loss the report names: one message loses its keyword half to
+      # ignore_above under every strategy, and the two lenient runs lose more
+      # than that. A 0 here would mean the loss counting stopped working.
+      - name: the strict run exits 1 for its one silent loss
         run: |
           logsearch ingest --strategy strict > /dev/null && code=0 || code=$?
           test "$code" = "1"
+      - name: the normalize run exits 1 with six events held back
+        run: |
+          logsearch ingest --strategy normalize --dead-letter held.jsonl > /dev/null && code=0 || code=$?
+          test "$code" = "1"
+      - name: the lenient run exits 1 with fourteen values dropped
+        run: |
+          logsearch ingest --strategy ignore-malformed --show-losses > /dev/null && code=0 || code=$?
+          test "$code" = "1"
+      # 2 is a refusal rather than a finding: an unknown template name is a
+      # usage error, not a lint result, and the two codes have to stay apart.
+      - name: an unknown template is refused with 2
+        run: |
+          logsearch fields logs-nope > /dev/null 2>&1 && code=0 || code=$?
+          test "$code" = "2"
 
   cluster:
     runs-on: ubuntu-latest
@@ -63,8 +86,9 @@ jobs:
           done
           echo "elasticsearch did not answer within 120s"
           exit 1
-      # The only tests that can say whether logsearch/conflicts.py is right
-      # about Elasticsearch rather than merely consistent with itself.
+      # The only tests that could say whether logsearch/conflicts.py is right
+      # about Elasticsearch rather than merely consistent with itself. This job
+      # has never run: the repository has no remote.
       - name: the live suite
         env:
           ELASTICSEARCH_URL: http://localhost:9200

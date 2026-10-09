@@ -14,3 +14,7 @@ dist/
 # into curl or saved next to a ticket. Neither output belongs in the tree.
 *.query.json
 bootstrap/
+
+# Written by `logsearch ingest --dead-letter held.jsonl`, which the README
+# documents and CI runs. Anchored to the root so fixtures/*.jsonl stay tracked.
+/held.jsonl
