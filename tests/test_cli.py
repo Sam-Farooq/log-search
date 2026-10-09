@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,60 @@ import pytest
 from logsearch.cli import FINDINGS, OK, REFUSED, main
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
+REPO = Path(__file__).resolve().parent.parent
+README = REPO / "README.md"
+WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
+
+
+def documented_invocations(readme: str) -> list[str]:
+    """The distinct `logsearch` commands the README's bash blocks tell a reader to run.
+
+    Trailing `#` comments and backslash continuations are folded out, so each
+    entry is the command a shell would receive. First-appearance order with
+    duplicates dropped, because `logsearch lint` is shown twice and is one
+    command.
+    """
+    commands: list[str] = []
+    in_bash = False
+    pending = ""
+    for raw in readme.splitlines():
+        if raw.startswith("```"):
+            in_bash = raw.strip() == "```bash"
+            pending = ""
+            continue
+        if not in_bash:
+            continue
+        line = raw.strip()
+        if not pending and not line.startswith("logsearch "):
+            continue
+        pending = f"{pending} {line}"
+        if pending.endswith("\\"):
+            pending = pending[:-1]
+            continue
+        commands.append(" ".join(pending.split(" #")[0].split()))
+        pending = ""
+    return list(dict.fromkeys(commands))
+
+
+def offline_job_invocations(workflow: str) -> list[str]:
+    """The distinct `logsearch` commands the workflow's `offline` job runs.
+
+    Shell decoration is cut at the first redirection or operator, so a step that
+    captures an exit code compares equal to the bare command the README shows.
+    """
+    lines = workflow.splitlines()
+    start = lines.index("  offline:")
+    end = next(
+        (index for index in range(start + 1, len(lines)) if re.match(r"^  \S", lines[index])),
+        len(lines),
+    )
+    commands: list[str] = []
+    for raw in lines[start:end]:
+        line = raw.strip().removeprefix("- ").removeprefix("run: ").strip()
+        if not line.startswith("logsearch "):
+            continue
+        commands.append(" ".join(re.split(r"\s(?:\d*>|&&|\|\|)", line)[0].split()))
+    return list(dict.fromkeys(commands))
 
 
 def test_the_package_and_the_project_agree_about_the_version():
@@ -215,3 +270,51 @@ def test_bootstrap_emits_one_request_per_step_in_order(capsys):
     assert "PUT logs-app-000001" in targets
     assert '"is_write_index": true' in out
     assert "10 requests" in targets[-1]
+
+
+def test_every_documented_invocation_is_in_the_offline_ci_job():
+    """A documented command no build runs rots, so the offline job runs all of them.
+
+    Eleven distinct commands, in the form the README writes them. The workflow
+    has never executed, so this is the only thing enforcing the correspondence.
+    """
+    documented = documented_invocations(README.read_text(encoding="utf-8"))
+    offline = offline_job_invocations(WORKFLOW.read_text(encoding="utf-8"))
+    assert len(documented) == 11
+    assert [command for command in documented if command not in offline] == []
+
+
+def test_a_command_the_readme_gains_alone_fails_that_check():
+    """The check above has to fail on a README the workflow does not cover.
+
+    Before this existed the offline job ran five of the eleven and the README
+    said it ran all of them, which no assertion could contradict.
+    """
+    doctored = README.read_text(encoding="utf-8") + "\n```bash\nlogsearch explain client.ip\n```\n"
+    documented = documented_invocations(doctored)
+    offline = offline_job_invocations(WORKFLOW.read_text(encoding="utf-8"))
+    assert documented[-1] == "logsearch explain client.ip"
+    assert [command for command in documented if command not in offline] == [
+        "logsearch explain client.ip"
+    ]
+
+
+def test_a_step_the_offline_job_loses_fails_that_check():
+    """And it has to fail in the other direction, on a workflow missing a step."""
+    step = "      - run: logsearch explain log.level\n"
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert step in workflow
+    offline = offline_job_invocations(workflow.replace(step, ""))
+    documented = documented_invocations(README.read_text(encoding="utf-8"))
+    assert [command for command in documented if command not in offline] == [
+        "logsearch explain log.level"
+    ]
+
+
+def test_the_offline_job_asserts_the_non_zero_exit_codes_the_readme_documents():
+    """Four assertions over the two non-zero codes in the README's table."""
+    documented_codes = set(re.findall(r"^\| (\d) \|", README.read_text(encoding="utf-8"), re.M))
+    asserted = re.findall(r'test "\$code" = "(\d)"', WORKFLOW.read_text(encoding="utf-8"))
+    assert documented_codes == {"0", "1", "2"}
+    assert set(asserted) == documented_codes - {"0"}
+    assert len(asserted) == 4
