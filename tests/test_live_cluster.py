@@ -173,8 +173,19 @@ def test_the_type_table_agrees_with_the_parser(
     elif case["verdict"] == "malformed":
         assert not strict_ok, f"{case} indexed under the strict mapping"
         assert lenient_ok, lenient.body
-        hit = client.get(index=type_case_lenient, id=f"case-{case_index}")
-        assert case["field"] in (hit.body.get("_ignored") or [])
+        # _ignored off a SEARCH hit, not a GET. The GET API returns _source and
+        # the versioning metadata and no _ignored at all, so the original
+        # assertion read None for every case and could not have passed.
+        # logsearch.client.ignored_fields() already does it this way.
+        found = client.search(
+            index=type_case_lenient,
+            size=1,
+            query={"ids": {"values": [f"case-{case_index}"]}},
+            source=False,
+        )
+        hits = found["hits"]["hits"]
+        assert hits, f"case-{case_index} is not in {type_case_lenient}"
+        assert case["field"] in (hits[0].get("_ignored") or []), hits[0]
     else:
         assert not strict_ok, f"{case} indexed under the strict mapping"
         assert not lenient_ok, "ignore_malformed accepted an object sent to a scalar"
@@ -190,7 +201,7 @@ def test_ignore_malformed_loses_the_fields_the_report_named(client, lenient_inde
     from logsearch.client import ignored_fields
 
     index, report, outcome = lenient_index
-    assert outcome.indexed + outcome.conflicts == report.accepted == 40
+    assert outcome.indexed + outcome.conflicts == report.accepted == 39
     dropped = ignored_fields(client, index)
     # _ignored records the field and never the value it held.
     assert dropped.get("event.duration_ms") == 5
@@ -202,9 +213,18 @@ def test_a_term_query_on_an_analysed_field_finds_nothing(client, strict_index, a
     """The refusal in resolve(), run against a cluster rather than asserted."""
     field_map = FieldMap(app)
     index = strict_index[0]
-    by_term = client.search(index=index, size=0, query={"term": {"message": "Reconciled"}})
-    by_match = client.search(index=index, size=0, query={"match": {"message": "Reconciled"}})
+    # A whole message, which exists in the corpus. "Reconciled" was in no
+    # fixture at all, so the match assertion below could never have passed, and
+    # a single lowercase token would have matched the term query too and shown
+    # nothing: every message here is lowercase, so case is not the difference.
+    # The difference is that `message` is analysed into tokens and the string as
+    # a whole is not one of them, while `message.raw` is the untouched keyword.
+    whole = "handled /checkout/{id} in 13ms"
+    by_term = client.search(index=index, size=0, query={"term": {"message": whole}})
+    by_raw = client.search(index=index, size=0, query={"term": {"message.raw": whole}})
+    by_match = client.search(index=index, size=0, query={"match": {"message": whole}})
     assert by_term["hits"]["total"]["value"] == 0
+    assert by_raw["hits"]["total"]["value"] == 1, "the keyword subfield holds it verbatim"
     assert by_match["hits"]["total"]["value"] > 0
     # Which is why the builder will not emit the first one.
     with pytest.raises(FieldUsageError):
